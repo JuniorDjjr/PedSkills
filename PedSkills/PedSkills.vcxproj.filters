@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="PedSkills.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="IniReader">
+      <UniqueIdentifier>{3729fe3c-8a1d-4bb1-897f-75570a1d4e8e}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="IniReader\IniReader.h">
+      <Filter>IniReader</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

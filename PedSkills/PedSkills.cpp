@@ -2,6 +2,7 @@
 #include "CHud.h"
 #include "CGeneral.h"
 #include "CTimer.h"
+#include "CTheScripts.h"
 #include "..\injector\assembly.hpp"
 #include "IniReader/IniReader.h"
   
@@ -35,12 +36,14 @@ float gAccuracyMult = 1.0f;
 float gAccuracyVelocityFactor = 1.0f;
 float gAccuracyDistanceFactor = 1.0f;
 float gAccuracyOnVehicleFactor = 1.0f;
+float gAccuracyOnJetpackFactor = 1.0f;
 float gScriptAccuracyMult = 1.0f;
 float gScriptAttackMult = 1.0f;
 float gWeaponRangeMult = 1.0f;
 float gWeaponRangeMult2 = 2.0f;
 float gWeaponRangeMult3 = 3.0f;
 float gWeaponAimMult = 1.0f;
+float gPlayerVehMissionDamMult = 1.0f;
 float gWeaponAimMult025 = 0.25f;
 float gWeaponAimMult05 = 0.5f;
 float gWeaponAimMult4 = 4.0f;
@@ -413,8 +416,13 @@ public:
 			}
 			else gAccuracyOnVehicleFactor = 1.0f;
 
+			if (ReadIniFloat(ini, "General", "AccuracyOnJetpackFactor", &f)) {
+				gAccuracyOnJetpackFactor = f;
+			}
+			else gAccuracyOnJetpackFactor = 1.0f;
 
-			if (!initialized && (gPlayerAccuracyMult != 1.0f || gAccuracyMult != 1.0f || gAccuracyVelocityFactor > 0.0f || gAccuracyDistanceFactor > 0.0f || gAccuracyOnVehicleFactor > 0.0f))
+
+			if (!initialized && (gPlayerAccuracyMult != 1.0f || gAccuracyMult != 1.0f || gAccuracyVelocityFactor > 0.0f || gAccuracyDistanceFactor > 0.0f || gAccuracyOnVehicleFactor > 0.0f || gAccuracyOnJetpackFactor > 0.0f))
 			{
 				MakeInline<0x73FBFD, 0x73FBFD + 7>([](reg_pack& regs)
 				{
@@ -426,9 +434,18 @@ public:
 						PedData &data = pedData.Get(firingPed);
 						accuracyTargetTweak += data.targetDistanceFactor;
 						accuracyTargetTweak += data.targetAngleSpeedFactor;
+						CPlayerPed* playerPed = FindPlayerPed(-1);
+						if (playerPed->m_pIntelligence->GetTaskJetPack()) {
+							if (playerPed->m_nPedFlags.bIsInTheAir) {
+								accuracyTargetTweak += 1.0f * gAccuracyOnJetpackFactor;
+							}
+							else {
+								accuracyTargetTweak += 1.0f * gAccuracyOnJetpackFactor * gAccuracyOnJetpackFactor;
+							}
+						}
 					}
 					if (firingPed->m_pVehicle) {
-						accuracyTargetTweak += 1.0 * gAccuracyOnVehicleFactor;
+						accuracyTargetTweak += 1.0f * gAccuracyOnVehicleFactor;
 					}
 					regs.edx = firingPed->m_nWeaponAccuracy * ((firingPed->IsPlayer()) ? gPlayerAccuracyMult : (gAccuracyMult / accuracyTargetTweak));
 				});
@@ -465,6 +482,32 @@ public:
 						{
 							regs.eax = *(float*)(regs.eax + 0x4) * gWeaponAimMult; //mov eax, [eax+4]
 							*(float*)(regs.esp + 0x1C) = regs.eax; //mov [esp+1Ch], eax
+						});
+					}
+				}
+			}
+
+			if (ReadIniFloat(ini, "General", "PlayerVehMissionDamMult", &f)) {
+				gPlayerVehMissionDamMult = f;
+				if (gPlayerVehMissionDamMult != 1.0f) {
+					if (!initialized) {
+						injector::MakeInline<0x6D7DF2, 0x6D7DF2 + 6>([](injector::reg_pack& regs)
+						{
+							regs.eax = *(uint32_t*)(regs.edi + 0x58C); // mov     eax, [edi+58Ch]
+
+							CVehicle* vehicle = (CVehicle*)regs.esi;
+							CPlayerPed* playerPed = FindPlayerPed(-1);
+							if (CTheScripts::IsPlayerOnAMission() && vehicle->m_nCreatedBy == eVehicleCreatedBy::MISSION_VEHICLE && FindPlayerPed(-1)->m_pVehicle == vehicle && !vehicle->m_nVehicleFlags.bIsRCVehicle) {
+
+								float thisDamage = *(float*)(regs.esp + 0x84 + 0xC);
+
+								// Fix for petrol cap (not 100% but this way we don't need to do another hook).
+								if (thisDamage != vehicle->m_fHealth && thisDamage != 1000.0f) {
+									float finalDamageMult = gPlayerVehMissionDamMult;
+									if (playerPed->m_pVehicle && vehicle->m_pDriver != playerPed) finalDamageMult *= gPlayerVehMissionDamMult;
+									*(float*)(regs.esp + 0x84 + 0xC) *= finalDamageMult;
+								}
+							}
 						});
 					}
 				}
@@ -519,6 +562,7 @@ public:
 			}
 
 		};
+
 
     }
 } pedSkills;
